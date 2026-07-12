@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# 部署后填入公网地址，供 npm run build:mobile 使用
+# 例: https://fazhi-mojing.onrender.com

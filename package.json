@@ -1,0 +1,33 @@
+{
+  "name": "fazhi-mojing",
+  "version": "2.0.0",
+  "description": "发型魔镜 · AI 生图定制发型 — DALL·E / SD / iOS & Android",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/build-web.js && node server/index.js",
+    "web": "npm start",
+    "build": "node scripts/build-web.js",
+    "build:mobile": "node scripts/build-mobile.js",
+    "deploy": "./deploy.sh",
+    "docker:build": "docker build -t fazhi-mojing .",
+    "docker:run": "docker compose up --build",
+    "build:mobile": "node scripts/build-mobile.js",
+    "build:android:prod": "npm run build:mobile && cd android && ./gradlew assembleDebug",
+    "deploy": "./deploy.sh",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap open ios",
+    "cap:android": "npx cap open android",
+    "build:ios": "npm run build && npx cap sync ios && echo '✅ iOS 就绪'",
+    "build:android": "npm run build && npx cap sync android && echo '✅ Android 就绪'",
+    "build:all": "npm run build && npx cap sync && echo '✅ iOS + Android 就绪'"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  }
+}

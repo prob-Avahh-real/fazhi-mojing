@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>发型魔镜 · Fazhi Mojing</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0e14;--panel:#1a1824;--accent:#e8a87c;--accent2:#c38d9e;
+  --text:#f5eef0;--muted:#8a8494;--border:#2e2a3a;--glow:rgba(232,168,124,.25)
+}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","SF Pro Display","Microsoft YaHei",sans-serif;
+  min-height:100dvh;overflow-x:hidden;-webkit-tap-highlight-color:transparent;padding-bottom:env(safe-area-inset-bottom)}
+.app{display:flex;flex-direction:column;min-height:100dvh;max-width:480px;margin:0 auto}
+
+header{padding:16px 20px 8px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+header .tag{font-size:10px;color:var(--muted);letter-spacing:1px}
+#settings-btn{background:none;border:1px solid var(--border);border-radius:12px;width:36px;height:36px;
+  color:var(--muted);font-size:16px;cursor:pointer}
+#settings-btn:active{transform:scale(.92)}
+
+#mirror-wrap{position:relative;margin:0 16px;border-radius:24px;overflow:hidden;
+  background:linear-gradient(180deg,#1e1c28 0%,#121018 100%);
+  border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05)}
+#mirror-wrap::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(ellipse 60% 40% at 50% 20%,rgba(232,168,124,.08),transparent 70%);pointer-events:none;z-index:1}
+#canvas,#ai-image{width:100%;aspect-ratio:3/4;display:block;object-fit:cover}
+#ai-image{position:absolute;inset:0;z-index:3;display:none}
+#ai-image.show{display:block}
+#gen-loading{position:absolute;inset:0;z-index:4;display:none;flex-direction:column;
+  align-items:center;justify-content:center;background:rgba(15,14,20,.85);backdrop-filter:blur(6px);gap:12px}
+#gen-loading.show{display:flex}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#gen-loading p{font-size:13px;color:var(--muted)}
+
+#style-badge{position:absolute;top:12px;left:12px;z-index:5;background:rgba(15,14,20,.75);
+  backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:12px;padding:6px 12px;
+  font-size:11px;color:var(--accent);max-width:calc(100% - 120px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mode-badge{position:absolute;top:12px;right:52px;z-index:5;background:rgba(15,14,20,.75);
+  border:1px solid var(--border);border-radius:10px;padding:4px 8px;font-size:9px;color:var(--muted)}
+#random-btn{position:absolute;top:12px;right:12px;z-index:5;width:36px;height:36px;border-radius:50%;
+  background:rgba(15,14,20,.75);border:1px solid var(--border);color:var(--accent);font-size:16px;cursor:pointer}
+#random-btn:active{transform:scale(.92)}
+
+#action-bar{display:flex;gap:8px;padding:0 16px 8px;margin-top:-4px}
+.action-btn{flex:1;height:40px;border:1px solid var(--border);border-radius:14px;background:var(--panel);
+  color:var(--text);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;gap:4px;transition:all .15s}
+.action-btn:active{transform:scale(.96)}
+.action-btn:disabled{opacity:.35;pointer-events:none}
+.action-btn.primary{border-color:var(--accent);color:var(--accent);background:rgba(232,168,124,.08)}
+
+#input-area{padding:8px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.input-row{display:flex;gap:8px}
+#desc-input{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  padding:12px 16px;color:var(--text);font-size:15px;outline:none;resize:none;height:48px;line-height:1.4}
+#desc-input::placeholder{color:var(--muted)}
+#desc-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.btn{height:48px;padding:0 18px;border:none;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .12s;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#d4956a);color:#1a1008}
+.btn-voice{background:var(--panel);border:1px solid var(--border);color:var(--text);width:48px;padding:0}
+.btn-voice.listening{border-color:#e74c3c;color:#e74c3c;animation:pulse 1.2s ease infinite}
+.btn-voice .dot{width:8px;height:8px;border-radius:50%;background:currentColor;display:none}
+.btn-voice.listening .dot{display:block}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(231,76,60,.4)}50%{box-shadow:0 0 0 8px rgba(231,76,60,0)}}
+
+#quick-tags{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 8px}
+.tag-btn{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 12px;
+  font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
+.tag-btn:active,.tag-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(232,168,124,.08)}
+
+#presets,#gallery-sec{padding:8px 16px 12px}
+#presets h3,#gallery-sec h3{font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center}
+.preset-scroll,.gallery-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.preset-scroll::-webkit-scrollbar,.gallery-scroll::-webkit-scrollbar{display:none}
+.preset-card,.gallery-card{flex:0 0 72px;text-align:center;cursor:pointer;position:relative}
+.preset-thumb,.gallery-thumb{width:72px;height:72px;border-radius:16px;background:var(--panel);border:2px solid var(--border);
+  overflow:hidden;transition:border-color .15s;object-fit:cover}
+.preset-card:active .preset-thumb,.preset-card.active .preset-thumb,.gallery-card:active .gallery-thumb{border-color:var(--accent)}
+.preset-card span,.gallery-card span{display:block;font-size:10px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preset-thumb canvas{width:100%;height:100%}
+.gallery-del{position:absolute;top:-4px;right:4px;width:18px;height:18px;border-radius:50%;background:#e74c3c;
+  border:none;color:#fff;font-size:10px;line-height:18px;cursor:pointer;display:none}
+.gallery-card:hover .gallery-del{display:block}
+
+#params{padding:0 16px 12px}
+#params summary{font-size:12px;color:var(--muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:8px 0}
+#params summary::before{content:"▸";transition:transform .2s}
+#params[open] summary::before{transform:rotate(90deg)}
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:8px}
+.param-item label{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}
+.param-item select,.param-item input[type=range]{width:100%;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:8px;color:var(--text);font-size:13px;outline:none}
+.param-item input[type=color]{width:100%;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--panel);cursor:pointer;padding:2px}
+
+#voice-bar{display:none;margin:0 16px 8px;padding:8px 14px;background:rgba(231,76,60,.1);
+  border:1px solid rgba(231,76,60,.3);border-radius:12px;font-size:13px;color:#e74c3c}
+#voice-bar.show{display:block}
+
+#device-bar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:50;
+  background:rgba(20,18,28,.92);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:10px;color:var(--muted);display:none;align-items:center;gap:8px;white-space:nowrap}
+#device-bar.show{display:flex}
+#device-bar .ind{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:blink 1.5s ease infinite}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(30,28,40,.95);border:1px solid var(--border);border-radius:14px;
+  padding:10px 20px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:60;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Settings modal */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:flex-end;justify-content:center}
+#modal-overlay.show{display:flex}
+#settings-modal{background:var(--panel);border:1px solid var(--border);border-radius:24px 24px 0 0;
+  width:100%;max-width:480px;padding:20px;max-height:80dvh;overflow-y:auto}
+#settings-modal h2{font-size:18px;margin-bottom:16px}
+.setting-row{margin-bottom:14px}
+.setting-row label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.setting-row select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px;
+  padding:10px;color:var(--text);font-size:14px}
+.setting-row p{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+#modal-close{width:100%;margin-top:8px;height:44px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,var(--accent),#d4956a);color:#1a1008;font-weight:700;cursor:pointer}
+
+@media(max-width:280px),(max-height:300px){
+  header{padding:8px 12px 4px}header h1{font-size:16px}
+  #mirror-wrap{margin:0 8px;border-radius:16px}
+  #input-area{padding:8px}#desc-input{font-size:13px;height:40px}
+  .btn{height:40px;font-size:12px}.btn-voice{width:40px}
+  #presets,#params,#quick-tags,#gallery-sec{display:none}
+  #action-bar{padding:0 8px}
+  .action-btn{font-size:11px;height:36px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>发型魔镜</h1>
+      <div class="tag">AI 生图 · 文字/语音定制发型</div>
+    </div>
+    <button id="settings-btn" title="设置">⚙️</button>
+  </header>
+
+  <div id="mirror-wrap">
+    <canvas id="canvas"></canvas>
+    <img id="ai-image" alt="AI 生成发型">
+    <div id="gen-loading"><div class="spinner"></div><p id="gen-status">AI 正在绘制发型...</p></div>
+    <div id="style-badge">等待描述...</div>
+    <div id="mode-badge">Canvas</div>
+    <button id="random-btn" title="随机造型">🎲</button>
+  </div>
+
+  <div id="action-bar">
+    <button class="action-btn primary" id="save-btn" disabled>💾 保存</button>
+    <button class="action-btn" id="share-btn" disabled>📤 分享</button>
+    <button class="action-btn" id="export-btn" disabled>⬇️ 导出</button>
+  </div>
+
+  <div id="voice-bar">🎤 正在聆听...</div>
+
+  <div id="input-area">
+    <div class="input-row">
+      <textarea id="desc-input" placeholder="描述你想要的发型，例如：及肩波浪卷，空气刘海，亚麻色" rows="1"></textarea>
+      <button class="btn btn-voice" id="voice-btn" title="语音描述"><span class="dot"></span>🎤</button>
+      <button class="btn btn-primary" id="create-btn">AI 生成</button>
+    </div>
+  </div>
+
+  <div id="quick-tags"></div>
+
+  <div id="presets">
+    <h3>灵感库</h3>
+    <div class="preset-scroll" id="preset-list"></div>
+  </div>
+
+  <div id="gallery-sec">
+    <h3>我的造型 <span id="gallery-count" style="font-weight:400"></span></h3>
+    <div class="gallery-scroll" id="gallery-list"><span style="font-size:11px;color:var(--muted)">暂无保存，生成后可保存到相册</span></div>
+  </div>
+
+  <details id="params">
+    <summary>微调参数</summary>
+    <div class="param-grid" id="param-grid"></div>
+  </details>
+</div>
+
+<div id="device-bar"><span class="ind"></span><span id="device-hint">智能设备已连接</span></div>
+<div id="toast"></div>
+
+<div id="modal-overlay">
+  <div id="settings-modal">
+    <h2>⚙️ AI 设置</h2>
+    <div class="setting-row">
+      <label>云端 API 地址（手机 App 必填）</label>
+      <input id="api-url-input" type="url" placeholder="https://fazhi-mojing.onrender.com"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px;color:var(--text);font-size:14px">
+      <p>部署后填入公网 URL，App 将通过此地址调用 AI 生图</p>
+    </div>
+    <div class="setting-row">
+      <label>AI 提供商</label>
+      <select id="provider-select">
+        <option value="auto">自动（优先 DALL·E → SD → Replicate）</option>
+        <option value="openai">OpenAI DALL·E 3</option>
+        <option value="stability">Stability SD3</option>
+        <option value="replicate">Replicate Flux</option>
+        <option value="canvas">仅 Canvas 预览（离线）</option>
+      </select>
+      <p id="provider-status">检测中...</p>
+    </div>
+    <div class="setting-row">
+      <label>渲染模式</label>
+      <select id="render-mode">
+        <option value="ai">AI 生图（推荐）</option>
+        <option value="canvas">Canvas 程序化预览</option>
+        <option value="both">AI + Canvas 预览并行</option>
+      </select>
+    </div>
+    <button id="modal-close">完成</button>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+function resolveApiBase() {
+  if (window.FAZHI_CONFIG?.apiUrl) return window.FAZHI_CONFIG.apiUrl.replace(/\/$/, '');
+  try {
+    const saved = localStorage.getItem('fazhi_api_url');
+    if (saved) return saved.replace(/\/$/, '');
+  } catch {}
+  if (location.protocol === 'capacitor:' || location.protocol === 'file:') return '';
+  return location.origin;
+}
+let API_BASE = resolveApiBase();
+const SETTINGS_KEY = 'fazhi-mojing-settings';
+const DB_NAME = 'fazhi-mojing';
+const DB_STORE = 'gallery';
+
+let settings = { provider: 'auto', renderMode: 'ai' };
+let aiAvailable = false;
+let currentImage = null; // data URL
+let currentLabel = '';
+let currentPrompt = '';
+let generating = false;
+
+function loadSettings() {
+  try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch {}
+  document.getElementById('provider-select').value = settings.provider;
+  document.getElementById('render-mode').value = settings.renderMode;
+  const apiInput = document.getElementById('api-url-input');
+  if (apiInput) apiInput.value = settings.apiUrl || localStorage.getItem('fazhi_api_url') || window.FAZHI_CONFIG?.apiUrl || '';
+}
+function saveSettings() {
+  settings.provider = document.getElementById('provider-select').value;
+  settings.renderMode = document.getElementById('render-mode').value;
+  const apiUrl = document.getElementById('api-url-input')?.value.trim().replace(/\/$/, '') || '';
+  settings.apiUrl = apiUrl;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  if (apiUrl) localStorage.setItem('fazhi_api_url', apiUrl);
+  else localStorage.removeItem('fazhi_api_url');
+  API_BASE = apiUrl || resolveApiBase();
+}
+
+async function checkAIHealth() {
+  if (!API_BASE) {
+    aiAvailable = false;
+    document.getElementById('provider-status').textContent = '请设置云端 API 地址（⚙️ 设置）';
+    document.getElementById('mode-badge').textContent = 'Canvas';
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    const data = await res.json();
+    aiAvailable = data.ok && Object.values(data.providers).some(Boolean);
+    const names = [];
+    if (data.providers?.openai) names.push('DALL·E');
+    if (data.providers?.stability) names.push('SD3');
+    if (data.providers?.replicate) names.push('Flux');
+    document.getElementById('provider-status').textContent = names.length
+      ? `已连接：${names.join(' · ')}`
+      : '未配置 API Key，将使用 Canvas 预览。复制 .env.example → .env';
+    if (!aiAvailable && settings.provider !== 'canvas') {
+      document.getElementById('mode-badge').textContent = 'Canvas';
+    }
+  } catch {
+    aiAvailable = false;
+    document.getElementById('provider-status').textContent = '未连接 AI 服务器，请运行 npm start';
+  }
+}
+
+// ==================== HAIR PARAM MODEL ====================
+const DEFAULTS = {
+  length:'medium', texture:'straight', style:'loose', bangs:'none',
+  color:'#3d2314', highlight:'', volume:0.5, parting:'center', shine:0.6
+};
+
+const PRESETS = [
+  { name:'黑长直', desc:'黑色长直发，中分，无刘海，柔顺' },
+  { name:'空气刘海', desc:'棕色中长发，空气刘海，内扣，微卷' },
+  { name:'羊毛卷', desc:'深棕色及肩羊毛卷，蓬松，八字刘海' },
+  { name:'高马尾', desc:'金色长发高马尾，无刘海，光泽感' },
+  { name:'丸子头', desc:'黑色中长发丸子头，碎发，自然' },
+  { name:'波波头', desc:'深棕色短发波波头，齐刘海，内扣' },
+  { name:'双马尾', desc:'亚麻色长发双马尾，齐刘海，可爱' },
+  { name:'渐变挑染', desc:'黑色长发，紫色渐变挑染，大波浪' },
+  { name:'精灵短发', desc:'铂金色精灵短发，侧分，层次感' },
+  { name:'编发造型', desc:'棕色长发侧边编发，无刘海，优雅' }
+];
+
+const QUICK_TAGS = ['长发','短发','卷发','直发','刘海','马尾','丸子头','挑染','蓬松','中分'];
+
+const RULES = [
+  [/精灵|超短|寸头|pixie/i, { length:'pixie' }],
+  [/及耳|耳上|短(?:发|款)/, { length:'short' }],
+  [/及肩|肩长|中(?:长)?发/, { length:'medium' }],
+  [/及腰|腰长|超长发|很长/, { length:'verylong' }],
+  [/长发|长(?:的|款)/, { length:'long' }],
+  [/羊毛卷|小卷|蛋卷/, { texture:'coily' }],
+  [/大卷|卷发|波浪|微卷|卷(?:发|的)/, { texture:'curly' }],
+  [/水波纹|波纹/, { texture:'wavy' }],
+  [/直发|直(?:的|款)|黑长直|柔顺/, { texture:'straight' }],
+  [/双马尾|双辫/, { style:'twin' }],
+  [/高马尾|马尾|扎(?:起|起来)/, { style:'ponytail' }],
+  [/丸子|发髻|盘发/, { style:'bun' }],
+  [/编发|辫子|麻花/, { style:'braid' }],
+  [/波波|bob/i, { style:'bob' }],
+  [/空气刘海/, { bangs:'air' }],
+  [/齐刘海|厚刘海|平刘海/, { bangs:'full' }],
+  [/八字|法式刘海|侧刘海/, { bangs:'curtain' }],
+  [/无刘海|露额/, { bangs:'none' }],
+  [/侧分刘海|斜刘海/, { bangs:'side' }],
+  [/黑色|乌发|黑发/, { color:'#1a1008' }],
+  [/深棕|巧克力/, { color:'#3d2314' }],
+  [/棕色|栗色|暖棕/, { color:'#6b4423' }],
+  [/亚麻|奶茶|浅棕/, { color:'#a08060' }],
+  [/金色|金发|浅金/, { color:'#d4a843' }],
+  [/铂金|银白|白金/, { color:'#e8e0d0' }],
+  [/红色|酒红|红棕/, { color:'#8b2500' }],
+  [/紫色|紫(?:色|红)/, { color:'#6b3fa0', highlight:'#9b59b6' }],
+  [/蓝色|蓝(?:色|黑)/, { color:'#2c3e6b', highlight:'#4a90d9' }],
+  [/粉色|樱花/, { color:'#d4849a', highlight:'#f0a0b8' }],
+  [/渐变|挑染|挂耳/, { highlight:'#c38d9e' }],
+  [/蓬松|高颅顶|炸/, { volume:0.85 }],
+  [/贴(?:头皮|服)|扁/, { volume:0.25 }],
+  [/中分/, { parting:'center', bangs:'none' }],
+  [/三七分|侧分(?:左)?/, { parting:'left' }],
+  [/四六分|侧分右/, { parting:'right' }],
+  [/光泽|亮(?:泽)?|丝滑/, { shine:0.9 }],
+  [/哑光|自然(?:感)?/, { shine:0.3 }]
+];
+
+function parseDescription(text) {
+  const p = { ...DEFAULTS };
+  for (const [re, patch] of RULES) {
+    if (re.test(text)) Object.assign(p, patch);
+  }
+  if (p.length === 'pixie' || p.length === 'short') p.style = p.style === 'loose' ? 'bob' : p.style;
+  return p;
+}
+
+// ==================== AI PROMPT BUILDER ====================
+const EN = {
+  length: { pixie:'pixie cut', short:'short hair', medium:'shoulder-length hair', long:'long hair', verylong:'waist-length hair' },
+  texture: { straight:'straight silky', wavy:'soft wavy', curly:'curly', coily:'tight coily perm' },
+  style: { loose:'flowing loose', bob:'bob cut', ponytail:'high ponytail', bun:'elegant bun updo', twin:'twin tails', braid:'side braid' },
+  bangs: { none:'no bangs forehead visible', full:'blunt bangs', air:'wispy air bangs', curtain:'curtain bangs', side:'side-swept bangs' },
+  parting: { center:'center part', left:'side part left', right:'side part right' }
+};
+
+function colorName(hex) {
+  const m = { '#1a1008':'jet black', '#3d2314':'dark brown', '#6b4423':'warm brown', '#a08060':'ash brown linen',
+    '#d4a843':'golden blonde', '#e8e0d0':'platinum blonde', '#8b2500':'auburn red', '#6b3fa0':'purple', '#2c3e6b':'blue-black', '#d4849a':'rose pink' };
+  return m[hex] || 'natural brown';
+}
+
+function buildAIPrompt(text, p) {
+  const parts = [
+    'Professional salon portrait photograph of a beautiful East Asian woman,',
+    `hairstyle: ${text}.`,
+    EN.length[p.length], EN.texture[p.texture], EN.style[p.style] + ' style,',
+    EN.bangs[p.bangs] + ',', EN.parting[p.parting] + ',',
+    colorName(p.color) + ' hair color,',
+    p.volume > 0.7 ? 'voluminous full body hair,' : p.volume < 0.35 ? 'sleek flat hair,' : '',
+    p.highlight ? 'with subtle highlights and color dimension,' : '',
+    p.shine > 0.7 ? 'glossy shiny finish,' : 'natural matte finish,',
+    'clean neutral studio background, soft beauty lighting,',
+    'focus on hair texture and styling detail, photorealistic, 8k quality, fashion magazine editorial'
+  ];
+  return parts.filter(Boolean).join(' ');
+}
+
+// ==================== AI GENERATION ====================
+function setLoading(on, msg) {
+  document.getElementById('gen-loading').classList.toggle('show', on);
+  if (msg) document.getElementById('gen-status').textContent = msg;
+  document.getElementById('create-btn').disabled = on;
+  generating = on;
+}
+
+function showAIImage(dataUrl) {
+  const img = document.getElementById('ai-image');
+  img.src = dataUrl;
+  img.classList.add('show');
+  currentImage = dataUrl;
+  document.getElementById('mode-badge').textContent = 'AI';
+  setActionButtons(true);
+}
+
+function hideAIImage() {
+  document.getElementById('ai-image').classList.remove('show');
+  currentImage = null;
+  document.getElementById('mode-badge').textContent = 'Canvas';
+  setActionButtons(false);
+}
+
+function setActionButtons(enabled) {
+  ['save-btn','share-btn','export-btn'].forEach(id => {
+    document.getElementById(id).disabled = !enabled;
+  });
+}
+
+async function generateAI(text, p) {
+  const useCanvas = settings.provider === 'canvas' || settings.renderMode === 'canvas';
+  const useAI = !useCanvas && (settings.renderMode === 'ai' || settings.renderMode === 'both') && aiAvailable;
+
+  if (settings.renderMode === 'both' || settings.renderMode === 'canvas' || !useAI) {
+    applyParamsCanvas(p, text.slice(0, 20));
+  }
+
+  if (!useAI) {
+    if (!aiAvailable && settings.renderMode !== 'canvas') toast('AI 不可用，已用 Canvas 预览');
+    return;
+  }
+
+  const prompt = buildAIPrompt(text, p);
+  currentPrompt = prompt;
+  setLoading(true, 'AI 正在绘制发型...');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, provider: settings.provider }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '生成失败');
+
+    showAIImage(data.image);
+    currentLabel = text.slice(0, 30);
+    document.getElementById('style-badge').textContent = currentLabel;
+    toast(`✨ ${data.provider === 'openai' ? 'DALL·E' : data.provider === 'stability' ? 'SD3' : 'Flux'} 造型已生成`);
+  } catch (e) {
+    toast('AI 失败：' + e.message);
+    applyParamsCanvas(p, text.slice(0, 20));
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ==================== CANVAS RENDERER (fallback) ====================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let params = { ...DEFAULTS };
+let animFrame = 0;
+
+function resizeCanvas() {
+  const wrap = document.getElementById('mirror-wrap');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = wrap.clientWidth;
+  const h = w * 4 / 3;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  render();
+}
+
+function lerpColor(c1, c2, t) {
+  const p = h => { const n = parseInt(h.slice(1), 16); return [(n>>16)&255,(n>>8)&255,n&255]; };
+  const a = p(c1), b = p(c2);
+  return `rgb(${a.map((v,i) => Math.round(v + (b[i]-v)*t)).join(',')})`;
+}
+
+function lengthScale(l) { return { pixie:.35, short:.5, medium:.68, long:.88, verylong:1.05 }[l] || .68; }
+
+function drawHead(cx, cy, r) {
+  ctx.fillStyle = '#e8c4a8';
+  ctx.beginPath();
+  ctx.moveTo(cx-r*.28,cy+r*.55); ctx.lineTo(cx+r*.28,cy+r*.55);
+  ctx.lineTo(cx+r*.22,cy+r*.95); ctx.lineTo(cx-r*.22,cy+r*.95); ctx.closePath(); ctx.fill();
+  const grad = ctx.createRadialGradient(cx-r*.15,cy-r*.1,r*.1,cx,cy,r);
+  grad.addColorStop(0,'#f5dcc8'); grad.addColorStop(1,'#e0b898');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.ellipse(cx,cy,r*.72,r*.88,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ddb896';
+  [-1,1].forEach(s => { ctx.beginPath(); ctx.ellipse(cx+s*r*.72,cy+r*.05,r*.1,r*.16,s*.3,0,Math.PI*2); ctx.fill(); });
+  ctx.fillStyle = '#2a2018';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.ellipse(cx+s*r*.28,cy-r*.05,r*.08,r*.1,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx+s*r*.28+r*.03,cy-r*.08,r*.025,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#2a2018';
+  });
+  ctx.strokeStyle='rgba(180,120,90,.3)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx,cy+r*.05); ctx.lineTo(cx-r*.04,cy+r*.18); ctx.stroke();
+  ctx.fillStyle='#c87878'; ctx.beginPath(); ctx.ellipse(cx,cy+r*.32,r*.1,r*.05,0,0,Math.PI); ctx.fill();
+}
+
+function drawHairStrand(x1,y1,x2,y2,cpx,cpy,color,w) {
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.quadraticCurveTo(cpx,cpy,x2,y2); ctx.stroke();
+}
+
+function drawHair(p) {
+  const w = canvas.width/(window.devicePixelRatio||1);
+  const h = canvas.height/(window.devicePixelRatio||1);
+  const cx=w/2, cy=h*.42, r=w*.22, ls=lengthScale(p.length), vol=.7+p.volume*.6, t=animFrame*.02;
+  ctx.save();
+  ctx.fillStyle = p.color;
+  ctx.beginPath(); ctx.ellipse(cx,cy-r*.05,r*(.85+vol*.15),r*(.9+ls*.5),0,Math.PI,Math.PI*2); ctx.fill();
+  const strands = Math.floor(12+p.volume*16);
+  const texAmp = { straight:.02, wavy:.12, curly:.22, coily:.32 }[p.texture]||.02;
+  for (let i=0;i<strands;i++) {
+    const side = i<strands/2?-1:1, idx=i%(strands/2);
+    const spread=(idx/(strands/2))*.8+.1;
+    const angle=side*(Math.PI*.35+spread*Math.PI*.45);
+    let x1=cx+Math.sin(angle)*r*.5, y1=cy-r*.6, x2=cx+Math.sin(angle)*r*(.6+vol*.3), y2=cy+r*ls*1.2;
+    if(p.style==='ponytail'){y1=cy-r*.3;x2=cx+side*r*.2;y2=cy+r*ls*1.6}
+    if(p.style==='bun'&&i<4)continue;
+    if(p.style==='bob')y2=cy+r*.35;
+    const wave=Math.sin(idx*.8+t*3)*texAmp*r;
+    drawHairStrand(x1,y1,x2,y2,(x1+x2)/2+wave*side,(y1+y2)/2+texAmp*r*2,p.color,2+vol*2);
+  }
+  if(p.bangs!=='none') {
+    const n=p.bangs==='full'?14:p.bangs==='air'?10:8;
+    for(let i=0;i<n;i++){
+      const bx=cx+(i-n/2)*r*.08, by2=p.bangs==='air'?cy-r*.35:cy-r*.15;
+      drawHairStrand(bx,cy-r*.75,bx,cy-r*.15,bx,(cy-r*.75+by2)/2,p.color,2.5);
+    }
+  }
+  ctx.restore();
+}
+
+function render() {
+  const w=canvas.width/(window.devicePixelRatio||1), h=canvas.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,w,h);
+  const bg=ctx.createRadialGradient(w/2,h*.3,0,w/2,h*.5,w);
+  bg.addColorStop(0,'#2a2535'); bg.addColorStop(1,'#0f0e14');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+  drawHair(params); drawHead(w/2,h*.42,w*.22);
+}
+
+function animate(){animFrame++;if(!currentImage&&(params.texture!=='straight'||params.highlight))render();requestAnimationFrame(animate)}
+
+function applyParamsCanvas(p, label) {
+  params = { ...p };
+  document.getElementById('style-badge').textContent = label || describeParams(p);
+  syncParamControls(); render();
+}
+
+function describeParams(p) {
+  const lm={pixie:'精灵短发',short:'短发',medium:'及肩发',long:'长发',verylong:'及腰'};
+  const tm={straight:'直发',wavy:'微卷',curly:'卷发',coily:'羊毛卷'};
+  const sm={bob:'波波头',ponytail:'高马尾',bun:'丸子头',twin:'双马尾',braid:'编发'};
+  const bm={full:'齐刘海',air:'空气刘海',side:'侧刘海',curtain:'八字刘海'};
+  return [lm[p.length],tm[p.texture],sm[p.style],bm[p.bangs]].filter(Boolean).join(' · ')||'自定义造型';
+}
+
+// ==================== SAVE / SHARE / EXPORT ====================
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE, { keyPath: 'id' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveToGallery() {
+  if (!currentImage) { toast('没有可保存的图片'); return; }
+  const db = await openDB();
+  const item = {
+    id: crypto.randomUUID(),
+    label: currentLabel || document.getElementById('style-badge').textContent,
+    prompt: currentPrompt,
+    image: currentImage,
+    createdAt: Date.now(),
+  };
+  await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(item);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  toast('💾 已保存到相册');
+  loadGallery();
+}
+
+async function loadGallery() {
+  const db = await openDB();
+  const items = await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).getAll();
+    req.onsuccess = () => res(req.result.sort((a,b) => b.createdAt - a.createdAt));
+    req.onerror = () => rej(req.error);
+  });
+
+  const list = document.getElementById('gallery-list');
+  document.getElementById('gallery-count').textContent = items.length ? `(${items.length})` : '';
+  if (!items.length) {
+    list.innerHTML = '<span style="font-size:11px;color:var(--muted)">暂无保存，生成后可保存到相册</span>';
+    return;
+  }
+  list.innerHTML = '';
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'gallery-card';
+    card.innerHTML = `<img class="gallery-thumb" src="${item.image}" alt=""><span>${item.label}</span>
+      <button class="gallery-del" title="删除">×</button>`;
+    card.querySelector('.gallery-thumb').onclick = () => {
+      showAIImage(item.image);
+      currentLabel = item.label;
+      currentPrompt = item.prompt;
+      document.getElementById('style-badge').textContent = item.label;
+      document.getElementById('desc-input').value = item.label;
+    };
+    card.querySelector('.gallery-del').onclick = async e => {
+      e.stopPropagation();
+      const db2 = await openDB();
+      await new Promise(r => { const tx = db2.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).delete(item.id); tx.oncomplete=r; });
+      loadGallery(); toast('已删除');
+    };
+    list.appendChild(card);
+  });
+}
+
+async function shareImage() {
+  if (!currentImage) return;
+  try {
+    const blob = await (await fetch(currentImage)).blob();
+    const file = new File([blob], `fazhi-${Date.now()}.png`, { type: 'image/png' });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title: '我的新发型 · 发型魔镜', text: currentLabel, files: [file] });
+      toast('📤 已分享');
+    } else if (navigator.share) {
+      await navigator.share({ title: '我的新发型', text: currentLabel + ' — 发型魔镜' });
+    } else {
+      await copyImageToClipboard(blob);
+      toast('📋 已复制到剪贴板（可粘贴分享）');
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('分享失败：' + e.message);
+  }
+}
+
+async function copyImageToClipboard(blob) {
+  if (!navigator.clipboard?.write) throw new Error('浏览器不支持');
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+}
+
+function exportImage() {
+  if (!currentImage) return;
+  const a = document.createElement('a');
+  a.href = currentImage;
+  a.download = `fazhi-${Date.now()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('⬇️ 已导出 PNG');
+}
+
+// ==================== UI HELPERS ====================
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function buildQuickTags() {
+  QUICK_TAGS.forEach(tag => {
+    const b = document.createElement('button');
+    b.className = 'tag-btn'; b.textContent = tag;
+    b.onclick = () => {
+      const inp = document.getElementById('desc-input');
+      inp.value = (inp.value ? inp.value + '，' : '') + tag;
+    };
+    document.getElementById('quick-tags').appendChild(b);
+  });
+}
+
+function buildPresets() {
+  PRESETS.forEach((preset, i) => {
+    const card = document.createElement('div');
+    card.className = 'preset-card';
+    const thumb = document.createElement('canvas');
+    thumb.width = 72; thumb.height = 72;
+    card.innerHTML = `<div class="preset-thumb"></div><span>${preset.name}</span>`;
+    card.querySelector('.preset-thumb').appendChild(thumb);
+    card.onclick = () => {
+      document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      document.getElementById('desc-input').value = preset.desc;
+      pushHistory();
+      createFromInput();
+    };
+    document.getElementById('preset-list').appendChild(card);
+    setTimeout(() => drawThumb(thumb, parseDescription(preset.desc)), i * 40);
+  });
+}
+
+function drawThumb(cvs, p) {
+  const c = cvs.getContext('2d');
+  c.fillStyle = '#1a1824'; c.fillRect(0,0,72,72);
+  c.fillStyle = p.color; c.beginPath(); c.ellipse(36,28,22,18,0,0,Math.PI*2); c.fill();
+  c.fillStyle = '#e0b898'; c.beginPath(); c.ellipse(36,40,16,20,0,0,Math.PI*2); c.fill();
+}
+
+function buildParamControls() {
+  const fields = [
+    { key:'length', label:'长度', type:'select', opts:[['pixie','精灵短'],['short','短发'],['medium','及肩'],['long','长发'],['verylong','及腰']] },
+    { key:'texture', label:'质感', type:'select', opts:[['straight','直发'],['wavy','微卷'],['curly','卷发'],['coily','羊毛卷']] },
+    { key:'style', label:'造型', type:'select', opts:[['loose','自然'],['bob','波波'],['ponytail','马尾'],['bun','丸子'],['twin','双马尾'],['braid','编发']] },
+    { key:'bangs', label:'刘海', type:'select', opts:[['none','无'],['full','齐刘海'],['air','空气'],['curtain','八字'],['side','侧分']] },
+    { key:'parting', label:'分缝', type:'select', opts:[['center','中分'],['left','三七'],['right','四六']] },
+    { key:'color', label:'发色', type:'color' },
+    { key:'volume', label:'蓬松度', type:'range', min:0, max:1, step:.05 },
+    { key:'shine', label:'光泽', type:'range', min:0, max:1, step:.05 }
+  ];
+  fields.forEach(f => {
+    const div = document.createElement('div'); div.className = 'param-item';
+    div.innerHTML = `<label>${f.label}</label>`;
+    if (f.type === 'select') {
+      const sel = document.createElement('select'); sel.dataset.key = f.key;
+      f.opts.forEach(([v,t]) => { const o = document.createElement('option'); o.value=v; o.textContent=t; sel.appendChild(o); });
+      sel.onchange = () => { params[f.key]=sel.value; render(); regenerateFromParams(); };
+      div.appendChild(sel);
+    } else if (f.type === 'color') {
+      const inp = document.createElement('input'); inp.type='color'; inp.dataset.key=f.key; inp.value=params.color;
+      inp.oninput = () => { params.color=inp.value; render(); };
+      div.appendChild(inp);
+    } else {
+      const inp = document.createElement('input'); inp.type='range'; inp.dataset.key=f.key;
+      inp.min=f.min; inp.max=f.max; inp.step=f.step; inp.value=params[f.key];
+      inp.oninput = () => { params[f.key]=parseFloat(inp.value); render(); };
+      div.appendChild(inp);
+    }
+    document.getElementById('param-grid').appendChild(div);
+  });
+}
+
+function syncParamControls() {
+  document.querySelectorAll('#param-grid select, #param-grid input').forEach(el => {
+    if (el.dataset.key && params[el.dataset.key] !== undefined) el.value = params[el.dataset.key];
+  });
+}
+
+function regenerateFromParams() {
+  const text = document.getElementById('desc-input').value.trim() || describeParams(params);
+  document.getElementById('style-badge').textContent = describeParams(params);
+}
+
+async function createFromInput() {
+  const text = document.getElementById('desc-input').value.trim();
+  if (!text) { toast('请先描述你想要的发型'); return; }
+  const p = parseDescription(text);
+  params = p;
+  syncParamControls();
+  await generateAI(text, p);
+}
+
+// ==================== VOICE ====================
+let voiceRec = null, listening = false;
+function toggleVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('当前浏览器不支持语音识别'); return; }
+  const btn = document.getElementById('voice-btn');
+  const bar = document.getElementById('voice-bar');
+  if (listening) { voiceRec?.stop(); return; }
+  voiceRec = new SR();
+  voiceRec.lang = 'zh-CN'; voiceRec.continuous = false; voiceRec.interimResults = true;
+  voiceRec.onstart = () => { listening=true; btn.classList.add('listening'); bar.classList.add('show'); bar.textContent='🎤 正在聆听...'; };
+  voiceRec.onresult = e => {
+    let final='', interim='';
+    for (const r of e.results) { if(r.isFinal) final+=r[0].transcript; else interim+=r[0].transcript; }
+    bar.textContent = '🎤 ' + (final||interim);
+    if (final) {
+      document.getElementById('desc-input').value = final;
+      pushHistory(); createFromInput();
+      toast('🎤 已识别');
+    }
+  };
+  voiceRec.onerror = () => toast('语音识别失败');
+  voiceRec.onend = () => { listening=false; btn.classList.remove('listening'); bar.classList.remove('show'); };
+  voiceRec.start();
+}
+
+// ==================== SMART DEVICES ====================
+let ringActive=false, ringFc=0, lastRingAct=0, caneActive=false, caneFc=0, lastCaneAct=0;
+
+function initRing() {
+  if (typeof DeviceOrientationEvent === 'undefined') return;
+  const start = () => { ringActive=true; window.addEventListener('deviceorientation', onRing);
+    showDevice('💍 戒指：倾斜切换 · 抖动随机'); };
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    document.addEventListener('click', () => DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')start()}), {once:true});
+  } else start();
+}
+
+function onRing(e) {
+  if (!ringActive) return;
+  ringFc++; if (ringFc%8) return;
+  const now = Date.now();
+  if (now-lastRingAct<600) return;
+  if (Math.abs(e.gamma||0)>20) { lastRingAct=now; pushHistory(); randomStyle(); }
+  else if ((e.beta||0)>35) { lastRingAct=now; cycleStyle(1); }
+  else if ((e.beta||0)<25) { lastRingAct=now; cycleStyle(-1); }
+}
+
+function initCane() {
+  if (typeof DeviceMotionEvent === 'undefined') return;
+  const start = () => { caneActive=true; window.addEventListener('devicemotion', onCane);
+    showDevice('🦯 手杖：敲击生成 · 挥动撤销'); };
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    document.addEventListener('click', () => DeviceMotionEvent.requestPermission().then(s=>{if(s==='granted')start()}), {once:true});
+  } else start();
+}
+
+function onCane(e) {
+  if (!caneActive) return;
+  caneFc++; if (caneFc%6) return;
+  const a = e.accelerationIncludingGravity; if (!a) return;
+  const mag = Math.sqrt(a.x**2+a.y**2+a.z**2), now = Date.now();
+  if (now-lastCaneAct<500) return;
+  if (mag>18) { lastCaneAct=now; pushHistory(); createFromInput(); }
+  else if (mag>12&&Math.abs(a.x)>5) { lastCaneAct=now; undoHistory(); }
+}
+
+function showDevice(h) { document.getElementById('device-bar').classList.add('show'); document.getElementById('device-hint').textContent=h; }
+
+const cycleOpts = { length:['pixie','short','medium','long','verylong'], texture:['straight','wavy','curly','coily'], style:['loose','bob','ponytail','bun','twin','braid'] };
+let cycleIdx=0;
+function cycleStyle(dir) {
+  const keys=['length','texture','style'];
+  const k=keys[cycleIdx++%keys.length];
+  const opts=cycleOpts[k], cur=opts.indexOf(params[k]);
+  params[k]=opts[(cur+dir+opts.length)%opts.length];
+  syncParamControls(); render();
+  document.getElementById('style-badge').textContent=describeParams(params);
+}
+
+function randomStyle() {
+  Object.entries(cycleOpts).forEach(([k,opts]) => params[k]=opts[Math.floor(Math.random()*opts.length)]);
+  params.bangs=['none','full','air','curtain','side'][Math.floor(Math.random()*5)];
+  params.color=['#1a1008','#3d2314','#6b4423','#a08060','#d4a843'][Math.floor(Math.random()*5)];
+  syncParamControls();
+  const desc=describeParams(params);
+  document.getElementById('desc-input').value=desc;
+  createFromInput();
+  toast('🎲 随机造型');
+}
+
+const history=[];
+function pushHistory(){history.push(JSON.stringify(params));if(history.length>20)history.shift()}
+function undoHistory(){
+  if(history.length<2)return;
+  history.pop(); params=JSON.parse(history[history.length-1]);
+  syncParamControls(); render();
+  document.getElementById('style-badge').textContent=describeParams(params);
+}
+
+// ==================== INIT ====================
+document.getElementById('create-btn').onclick = () => { pushHistory(); createFromInput(); };
+document.getElementById('voice-btn').onclick = toggleVoice;
+document.getElementById('random-btn').onclick = () => { pushHistory(); randomStyle(); };
+document.getElementById('save-btn').onclick = saveToGallery;
+document.getElementById('share-btn').onclick = shareImage;
+document.getElementById('export-btn').onclick = exportImage;
+document.getElementById('desc-input').addEventListener('keydown', e => {
+  if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();pushHistory();createFromInput()}
+});
+document.getElementById('settings-btn').onclick = () => document.getElementById('modal-overlay').classList.add('show');
+document.getElementById('modal-close').onclick = () => { saveSettings(); document.getElementById('modal-overlay').classList.remove('show'); checkAIHealth(); };
+document.getElementById('modal-overlay').onclick = e => { if(e.target.id==='modal-overlay') document.getElementById('modal-close').click(); };
+
+loadSettings();
+buildQuickTags();
+buildPresets();
+buildParamControls();
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+pushHistory();
+applyParamsCanvas(parseDescription(PRESETS[0].desc), PRESETS[0].name);
+document.getElementById('desc-input').value = PRESETS[0].desc;
+animate();
+initRing();
+initCane();
+checkAIHealth();
+loadGallery();
+</script>
+</body>
+</html>

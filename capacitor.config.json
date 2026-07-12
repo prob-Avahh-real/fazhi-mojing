@@ -1,0 +1,7 @@
+{
+  "appId": "com.fazhi.mojing",
+  "appName": "发型魔镜",
+  "webDir": "www",
+  "ios": { "contentInset": "automatic" },
+  "android": { "allowMixedContent": true }
+}
