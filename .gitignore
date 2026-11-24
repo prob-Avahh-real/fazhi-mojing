@@ -7,3 +7,17 @@ android/
 .DS_Store
 npm-debug.log*
 *.tgz
+
+# Build, cache & secret exclusions
+.npm-cache/
+.build/
+DerivedData/
+.gradle/
+android/app/build/
+android/build/
+android/.gradle/
+__pycache__/
+.venv/
+*.apk
+*.aab
+*.ipa
